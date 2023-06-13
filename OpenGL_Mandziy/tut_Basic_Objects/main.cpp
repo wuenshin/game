@@ -15,12 +15,16 @@ struct Fish {
     float x;
     float y;
     float speed;
+    bool isCaught;
     bool captured;
+    float size;
+
+    Fish() : x(0.0f), y(0.0f), isCaught(false), size(0.1f) {}
 };
 
-// Функция для генерации случайного числа в заданном диапазоне
+// Р¤СѓРЅРєС†РёСЏ РґР»СЏ РіРµРЅРµСЂР°С†РёРё СЃР»СѓС‡Р°Р№РЅРѕРіРѕ С‡РёСЃР»Р° РІ Р·Р°РґР°РЅРЅРѕРј РґРёР°РїР°Р·РѕРЅРµ
 float random(float min, float max) {
-    return min +(float)(rand()) / ((float)(RAND_MAX / (max - min)));
+    return min + (float)(rand()) / ((float)(RAND_MAX / (max - min)));
 }
 
 
@@ -38,11 +42,15 @@ float areaXMax = 0.9f;
 float areaYMin = -0.9f;
 float areaYMax = 0.2f;
 float droneSize = 0.1f;
+int collectedFishCount = 0;
 int score = 0;
+int fishCount = 25;
+float objectSize = 0.1f;
 int timeRemaining = 60;
 int timerDelay = 1000;
-int prevTime = 0; // Предыдущее время в миллисекундах
-int currentTime = 0; // Текущее время в миллисекундах
+int prevTime = 0; // РџСЂРµРґС‹РґСѓС‰РµРµ РІСЂРµРјСЏ РІ РјРёР»Р»РёСЃРµРєСѓРЅРґР°С…
+int currentTime = 0; // РўРµРєСѓС‰РµРµ РІСЂРµРјСЏ РІ РјРёР»Р»РёСЃРµРєСѓРЅРґР°С…
+const int maxGameTime = 60;
 
 
 bool isRight = true;
@@ -54,7 +62,7 @@ void dron(float x, float y);
 void drawfish(int numFish, Fish* fish);
 
 
-// блок объявлений функций
+// Р±Р»РѕРє РѕР±СЉСЏРІР»РµРЅРёР№ С„СѓРЅРєС†РёР№
 void renderScene(void);
 void reshape(int width, int height);
 void backgroundScene();
@@ -62,10 +70,10 @@ void ship();
 void dron(float x, float y);
 void ProcessKeys(unsigned char key, int x, int y);
 void update(int value);
-void timewatch();
 void updateFish(int numFish, Fish* fishArray);
 void initializeFish();
 void updateScreen(int value);
+bool isCollision(float object1_x, float object1_y, float object2_x, float object2_y);
 
 
 std::vector<int> fishesToRemove;
@@ -84,7 +92,7 @@ int main(int argc, char* argv[])
     glutDisplayFunc(renderScene);
     glutReshapeFunc(reshape);
     glutKeyboardFunc(ProcessKeys);
-    glutTimerFunc(0, updateScreen, 0);  // Запуск функции обновления экрана
+    glutTimerFunc(0, updateScreen, 0);  // Р—Р°РїСѓСЃРє С„СѓРЅРєС†РёРё РѕР±РЅРѕРІР»РµРЅРёСЏ СЌРєСЂР°РЅР°
 
     glutMainLoop();
     return 0;
@@ -107,32 +115,33 @@ void renderScene(void) {
     updateFish(numFish, fishArray);
     drawfish(numFish, fishArray);
 
+    // РћС‚СЂРёСЃРѕРІРєР° СЃС‡РµС‚С‡РёРєР° РІСЂРµРјРµРЅРё
+    int currentTime = glutGet(GLUT_ELAPSED_TIME); // РџРѕР»СѓС‡Р°РµРј С‚РµРєСѓС‰РµРµ РІСЂРµРјСЏ РІ РјРёР»Р»РёСЃРµРєСѓРЅРґР°С…
+    int elapsedSeconds = currentTime / 1000; // РџРµСЂРµРІРѕРґРёРј РІСЂРµРјСЏ РІ СЃРµРєСѓРЅРґС‹
+    int remainingTime = maxGameTime - elapsedSeconds; // Р’С‹С‡РёСЃР»СЏРµРј РѕСЃС‚Р°РІС€РµРµСЃСЏ РІСЂРµРјСЏ
+    std::string timeString = "Time: " + std::to_string(remainingTime); // РџСЂРµРѕР±СЂР°Р·СѓРµРј РІСЂРµРјСЏ РІ СЃС‚СЂРѕРєСѓ
 
-    // Настройки для отображения текста
+    glColor3f(1.0f, 1.0f, 1.0f); // Р‘РµР»С‹Р№ С†РІРµС‚
+    glRasterPos2f(-0.9f, -0.99f); // РџРѕР·РёС†РёСЏ С‚РµРєСЃС‚Р°
+    for (char c : timeString) {
+        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, c); // РћС‚СЂРёСЃРѕРІРєР° СЃРёРјРІРѕР»Р°
+    }  // РћС‚РѕР±СЂР°Р¶РµРЅРёРµ РѕСЃС‚Р°РІС€РµРіРѕСЃСЏ РІСЂРµРјРµРЅРё
+
+
+    glPopMatrix();
     glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    gluOrtho2D(0, glutGet(GLUT_WINDOW_WIDTH), 0, glutGet(GLUT_WINDOW_HEIGHT));
+    glPopMatrix();
     glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
 
-    // Позиция и цвет текста
+    // Р’С‹РІРѕРґ РєРѕР»РёС‡РµСЃС‚РІР° СЃРѕР±СЂР°РЅРЅС‹С… СЂС‹Р±РѕРє
+    std::string fishCountText = "Fish Count: " + std::to_string(collectedFishCount);
     glColor3f(1.0f, 1.0f, 1.0f);
-    glRasterPos2f(10.0f, 10.0f);
+    glRasterPos2f(-0.9f, -0.9f);
+    for (char c : fishCountText) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
 
-    // Отображение оставшегося времени
-    std::stringstream ss;
-    ss << "Time: " << timeRemaining << " seconds";
-    std::string timeString = ss.str();
-    for (int i = 0; i < timeString.length(); ++i) {
-        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, timeString[i]);
     }
 
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
 
     glutSwapBuffers();
 }
@@ -140,7 +149,7 @@ void renderScene(void) {
 
 
 void initializeFish() {
-    srand(time(0)); 
+    srand(time(0));
 
     for (int i = 0; i < numFish; ++i) {
         fishArray[i].x = random(areaXMin, areaXMax);
@@ -153,10 +162,11 @@ void initializeFish() {
 void updateScreen(int value)
 {
     glutPostRedisplay();
-    glutTimerFunc(100, updateScreen, 0);  // Обновление каждые 0.1 секунды
+    glutTimerFunc(100, updateScreen, 0);  // РћР±РЅРѕРІР»РµРЅРёРµ РєР°Р¶РґС‹Рµ 0.1 СЃРµРєСѓРЅРґС‹
+
 }
 
-void updateFish(int numFish, Fish * fishArray) {
+void updateFish(int numFish, Fish* fishArray) {
     fishesToRemove.clear();
 
     for (int i = 0; i < numFish; ++i) {
@@ -175,8 +185,9 @@ void updateFish(int numFish, Fish * fishArray) {
             float distance = std::sqrt(std::pow(fishArray[i].x - pos_x, 2) + std::pow(fishArray[i].y - pos_y, 2));
             if (distance < droneSize) {
                 fishArray[i].captured = true;
-                score--;
+                score++;
             }
+
         }
     }
 
@@ -187,19 +198,21 @@ void updateFish(int numFish, Fish * fishArray) {
         }
     }
 }
-void generateNewFish(int numFish, Fish * fishArray) {
+void generateNewFish(int numFish, Fish* fishArray) {
     for (int i = 0; i < numFish; ++i) {
         if (fishArray[i].captured) {
             fishArray[i].x = random(areaXMin, areaXMax);
             fishArray[i].y = random(areaYMin, areaYMax);
             fishArray[i].speed = random(0.01f, 0.05f);
             fishArray[i].captured = false;
+            collectedFishCount++;
+            std::cout << " " << std::to_string(collectedFishCount);
         }
     }
 }
 
 void update(int value) {
-    updateFish( numFish ,  fishArray);
+    updateFish(numFish, fishArray);
     std::stringstream ss;
     ss << "Time: " << timeRemaining;
     timeString = ss.str();
@@ -210,34 +223,28 @@ void update(int value) {
     }
 
     if (value % 10 == 0) {
-        generateNewFish(numFish ,   fishArray);
+        generateNewFish(numFish, fishArray);
     }
 
     timeRemaining += score;
     glutTimerFunc(timerDelay, update, value + 1);
-}
 
-void timewatch()
-{
-    // Настройки для отображения текста
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    gluOrtho2D(0, glutGet(GLUT_WINDOW_WIDTH), 0, glutGet(GLUT_WINDOW_HEIGHT));
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
+    // РџСЂРѕРІРµСЂРєР° РЅР° СЃРѕРїСЂРёРєРѕСЃРЅРѕРІРµРЅРёРµ РґСЂРѕРЅР° СЃ СЂС‹Р±РєРѕР№ Рё СѓРІРµР»РёС‡РµРЅРёРµ СЃС‡РµС‚С‡РёРєР°
+    for (int i = 0; i < fishCount; ++i) {
+        if (isCollision(pos_x, pos_y, fishArray[i].x, fishArray[i].y)) {
+            fishArray[i].isCaught = true;
+            collectedFishCount++;
+            std::cout << " " << std::to_string(collectedFishCount);
 
-    // Позиция и цвет текста
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glRasterPos2f(10.0f, 10.0f);
+            //collectedFishCount++;  // РЈРІРµР»РёС‡РµРЅРёРµ СЃС‡РµС‚С‡РёРєР° СЃРѕР±СЂР°РЅРЅС‹С… СЂС‹Р±РѕРє
+        }
 
-    // Отображение оставшегося времени
-    for (int i = 0; i < timeString.length(); ++i) {
-        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, timeString[i]);
     }
 
+    glutPostRedisplay();
 }
+
+
 
 
 
@@ -253,6 +260,27 @@ void reshape(int width, int height) {
 void timer(int value) {
     glutPostRedisplay();
     glutTimerFunc(16, timer, 0);
+}
+
+bool isCollision(float object1_x, float object1_y, float object2_x, float object2_y) {
+    // РћРїСЂРµРґРµР»СЏРµРј РіСЂР°РЅРёС†С‹ РѕР±СЉРµРєС‚РѕРІ
+    float object1_left = object1_x - objectSize / 2;
+    float object1_right = object1_x + objectSize / 2;
+    float object1_top = object1_y + objectSize / 2;
+    float object1_bottom = object1_y - objectSize / 2;
+
+    float object2_left = object2_x - objectSize / 2;
+    float object2_right = object2_x + objectSize / 2;
+    float object2_top = object2_y + objectSize / 2;
+    float object2_bottom = object2_y - objectSize / 2;
+
+    // РџСЂРѕРІРµСЂСЏРµРј РїРµСЂРµСЃРµС‡РµРЅРёРµ РіСЂР°РЅРёС† РѕР±СЉРµРєС‚РѕРІ
+    if (object1_left <= object2_right && object1_right >= object2_left &&
+        object1_top >= object2_bottom && object1_bottom <= object2_top) {
+        return true;  // РЎС‚РѕР»РєРЅРѕРІРµРЅРёРµ РїСЂРѕРёР·РѕС€Р»Рѕ
+    }
+
+    return false;  // РЎС‚РѕР»РєРЅРѕРІРµРЅРёРµ РЅРµ РїСЂРѕРёР·РѕС€Р»Рѕ
 }
 
 
@@ -413,7 +441,7 @@ void dron(float x, float y) {
 
     glPushMatrix();
     glTranslatef(x, y, 0);
-    glScalef(0.2, 0.2, 0);
+    glScalef(0.1, 0.1, 0);
     if (isRight)
         glRotatef(180, 0, 1, 0);
     glBegin(GL_POLYGON);
